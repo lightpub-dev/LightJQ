@@ -1,0 +1,343 @@
+openapi: 3.0.0
+info:
+  title: LightJQ
+  version: 1.0.0
+tags:
+  - name: JQ master
+    description: APIs implemented in JQ master
+  - name: Worker
+    description: APIs JQ master can expect to be implemented in workers
+paths:
+  /job:
+   post:
+    tags:
+      - JQ master
+    summary: Enqueue a new job
+    requestBody:
+      content:
+        application/msgpack:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+              argument:
+                type: object
+                additionalProperties: true
+              priority:
+                type: integer
+                default: 0
+              max_retry:
+                type: integer
+                default: 10
+              keep_result:
+                type: boolean
+                default: false
+              timeout:
+                type: integer
+                default: 30
+            required:
+              - name
+              - argument
+    responses:
+      201:
+        description: Job enqueued successfully
+        content:
+          application/msgpack:
+            schema:
+              type: object
+              properties:
+                job_id:
+                  type: string
+              required:
+                - job_id
+      400:
+        description: invalid request
+
+  /job/{job_id}:
+    get:
+      summary: Get a job status
+      tags:
+        - JQ master
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema:
+            type: string
+            description: Job ID
+      responses:
+        200:
+          description: Job found
+          content:
+            application/msgpack:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Job status
+                    enum:
+                      - queued
+                      - running
+                      - retrying
+                      - error
+                      - done
+                  worker_id:
+                    type: string
+                    description: Worker ID which has executed the job last
+                    nullable: true
+                  result:
+                    description: Job result if any. Could be any valid Msgpack value.
+                    nullable: true
+                  error:
+                    description: Last error.
+                    nullable: true
+                  message:
+                    type: string
+                    description: Human-readable error message
+                  retry_count:
+                    type: integer
+                    description: Number of times the job has been retried
+                    default: 0
+                    nullable: true
+                required:
+                  - status
+        404:
+          description: Job not found
+    delete:
+      summary: Cancel a enqueued job
+      description: Cancel a job that has been enqueued but not yet started.
+      tags:
+        - JQ master
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema:
+            type: string
+            description: Job ID
+      responses:
+        204:
+          description: Job canceled
+        409:
+          description: Job is in non-cancelable state
+        404:
+          description: Job not found
+
+  /job/{job_id}/polling:
+    get:
+      summary: Polling a job until it is done or timeout.
+      description: This is a long-polling endpoint. It will return immediately if the job is already done. Otherwise, it will wait until the job is done or the timeout is reached. If the job finished with an error and no more retry is allowed, this endpoint will return immediately.
+      tags:
+        - JQ master
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema:
+            type: string
+            description: Job ID
+        - in: query
+          name: timeout
+          required: false
+          schema:
+            type: integer
+            description: Timeout in seconds
+            default: 5
+      responses:
+        404:
+          description: Job not found
+        408:
+          description: Timeout
+        200:
+          description: Job done
+          content:
+            application/msgpack:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Job status
+                    enum:
+                      - error
+                      - done
+                  worker_id:
+                    type: string
+                    description: Worker ID which has executed the job last
+                  result:
+                    description: Job result if any. Could be any valid Msgpack value.
+                  error:
+                    description: Last error.
+                    nullable: true
+                  message:
+                    type: string
+                    description: Human-readable error message
+                  retry_count:
+                    type: integer
+                    description: Number of times the job has been retried
+                    default: 0
+                    nullable: true
+                required:
+                  - status
+
+  /worker:
+    post:
+      tags:
+        - JQ master
+      summary: Register a new worker
+      requestBody:
+        content:
+          application/msgpack:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Worker name. May not be unique.
+                max_jobs:
+                  type: integer
+                  description: Maximum number of jobs this worker can handle at once.
+              required:
+                - name
+                - max_jobs
+      responses:
+        201:
+          description: Worker registered successfully
+          content:
+            application/msgpack:
+              schema:
+                type: object
+                properties:
+                  worker_id:
+                    type: string
+                    description: Unique worker ID. JQ master can expect workers to include this ID in the header of all requests sent by the worker.
+                required:
+                  - worker_id
+        400:
+          description: invalid request
+    delete:
+      tags:
+        - JQ master
+      summary: Unregister a worker
+      parameters:
+        - in: header
+          name: worker-id
+          required: true
+          schema:
+            type: string
+      responses:
+        204:
+          description: Worker unregistered successfully
+        404:
+          description: Worker not found
+
+  /done:
+    post:
+      tags:
+        - JQ master
+      summary: Job done
+      description: Worker sends the result of a job to this endpoint.
+      parameters:
+        - in: header
+          name: worker-id
+          required: true
+          schema:
+            type: string
+          description: Worker ID
+      requestBody:
+        content:
+          application/msgpack:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    job_id:
+                      type: string
+                      description: Job ID
+                    type:
+                      type: string
+                      default: "success"
+                    result:
+                      description: Job result. Could be any valid Msgpack value.
+                      default: null
+                  required:
+                    - job_id
+                    - type
+                - type: object
+                  properties:
+                    job_id:
+                      type: string
+                      description: Job ID
+                    type:
+                      type: string
+                      default: "failure"
+                    reason:
+                      type: string
+                      description: Reason for failure
+                      enum:
+                        - timeout
+                        - other
+                    should_retry:
+                      type: boolean
+                      description: Whether the job should be retried
+                    message:
+                      type: string
+                      description: Human-readable error message
+                    error:
+                      description: Error details. Could be any valid Msgpack value.
+                      default: null
+                  required:
+                    - job_id
+                    - type
+                    - reason
+                    - should_retry
+                    - message
+      responses:
+        204:
+          description: Job result received
+        400:
+          description: invalid request
+        404:
+          description: Unknown job ID
+
+  
+
+  /worker-job:
+    post:
+      tags:
+        - Worker
+      summary: Execute a job
+      description: Make a worker execute a job. This endpoint returns immediately. The result of the job will be sent to the `/done` endpoint.
+      requestBody:
+        content:
+          application/msgpack:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Job ID
+                name:
+                  type: string
+                  description: Job name
+                argument:
+                  type: object
+                  additionalProperties: true
+                  description: Job arguments
+                timeout:
+                  type: integer
+                  description: Timeout in seconds
+              required:
+                - job_id
+                - name
+                - argument
+                - timeout
+      responses:
+        202:
+          description: Job accepted
+        400:
+          description: invalid request
+        404:
+          description: Unknown job name
