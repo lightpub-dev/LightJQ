@@ -35,9 +35,25 @@ func (r RedisConn) Register(ctx context.Context, info *WorkerInfo) error {
 	return r.Client.RPush(ctx, WorkerRegisterQueue, encMsg).Err()
 }
 
-func (r RedisConn) Enqueue() error {
-	//TODO implement me
-	panic("implement me")
+// Enqueue **THIS IS A DEBUGGING FUNCTION**
+func (r RedisConn) Enqueue(ctx context.Context, job *JobInfo) error {
+	encMsg, err := job.Encode()
+	if err != nil {
+		return err
+	}
+	return r.Client.RPush(ctx, GlobalQueue, encMsg).Err()
+}
+
+func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
+	encMsg, err := r.Client.LPop(ctx, GlobalQueue).Bytes()
+	if err != nil {
+		return nil, err
+	}
+	var job JobInfo
+	if err := job.Decode(encMsg); err != nil {
+		return nil, err
+	}
+	return &job, nil
 }
 
 func (r RedisConn) FlushAll() error {

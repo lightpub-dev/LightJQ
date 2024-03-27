@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"os"
+	"time"
 )
 
 const (
@@ -84,6 +85,12 @@ func (c *Client) Register(ctx context.Context) error {
 	return c.Worker.Register(ctx, &c.Info)
 }
 
-func (c *Client) Enqueue() error {
-	return c.Worker.Enqueue()
+// Enqueue **THIS IS A DEBUGGING FUNCTION**
+func (c *Client) Enqueue(ctx context.Context, job *JobInfo) error {
+	job.RegisteredAt = time.Now()
+	return c.Worker.Enqueue(ctx, job)
+}
+
+func (c *Client) Dequeue(ctx context.Context) (*JobInfo, error) {
+	return c.Worker.Dequeue(ctx)
 }
