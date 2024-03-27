@@ -1,6 +1,9 @@
 package internal
 
-import "context"
+import (
+	"context"
+	"github.com/redis/go-redis/v9"
+)
 
 const (
 	WorkerRegisterQueue = "jq:workerRegister"
@@ -17,6 +20,7 @@ type Worker interface {
 	Enqueue() error
 
 	FlushAll() error
+	Self() *redis.Client
 }
 
 type Message interface {

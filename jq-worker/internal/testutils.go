@@ -16,6 +16,11 @@ func TestSetup(t *testing.T) *Client {
 	return client
 }
 
+func TestTeardown(t *testing.T, client *Client) {
+	t.Helper()
+	flushAll(t, client)
+}
+
 func flushAll(t *testing.T, client *Client) {
 	t.Helper()
 	err := client.FlushAll()

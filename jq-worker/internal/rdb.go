@@ -15,6 +15,10 @@ type RedisConn struct {
 	client *redis.Client
 }
 
+func (r RedisConn) Self() *redis.Client {
+	return r.client
+}
+
 func (r RedisConn) Register(ctx context.Context, msg *WorkerInfo) error {
 	encMsg, err := msg.Encode()
 	if err != nil {
