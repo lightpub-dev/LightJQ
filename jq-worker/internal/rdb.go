@@ -1,6 +1,9 @@
 package internal
 
-import "github.com/redis/go-redis/v9"
+import (
+	"context"
+	"github.com/redis/go-redis/v9"
+)
 
 type RedisOpt struct {
 	Addr string
@@ -10,6 +13,14 @@ type RedisOpt struct {
 
 type RedisConn struct {
 	client *redis.Client
+}
+
+func (r RedisConn) Register(ctx context.Context, msg *WorkerInfo) error {
+	encMsg, err := msg.Encode()
+	if err != nil {
+		return err
+	}
+	return r.client.RPush(ctx, WorkerRegisterQueue, encMsg).Err()
 }
 
 func (r RedisConn) Enqueue() error {
