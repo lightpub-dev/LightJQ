@@ -9,12 +9,14 @@ const (
 )
 
 type Client struct {
-	worker Worker
+	Worker
 }
 
 type Worker interface {
 	Register(ctx context.Context, msg *WorkerInfo) error
 	Enqueue() error
+
+	FlushAll() error
 }
 
 type Message interface {

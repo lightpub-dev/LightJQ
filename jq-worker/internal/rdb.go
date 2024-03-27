@@ -28,6 +28,10 @@ func (r RedisConn) Enqueue() error {
 	panic("implement me")
 }
 
+func (r RedisConn) FlushAll() error {
+	return r.client.FlushAll(context.Background()).Err()
+}
+
 func NewClient(redisOpt RedisOpt) *Client {
 	client := redis.NewClient(&redis.Options{
 		Addr:     redisOpt.Addr,
@@ -35,5 +39,5 @@ func NewClient(redisOpt RedisOpt) *Client {
 		Password: redisOpt.Pass,
 	})
 
-	return &Client{worker: RedisConn{client: client}}
+	return &Client{Worker: RedisConn{client: client}}
 }
