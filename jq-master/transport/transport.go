@@ -17,11 +17,15 @@ func NewConn(r *redis.Client) *Conn {
 }
 
 const (
-	RGlobalQueue    = "jq:globalQueue"
-	RWorkerRegister = "jq:worker-register"
-	RResult         = "jq:result"
-	RJobList        = "jq:jobList"
+	RGlobalQueue     = "jq:globalQueue"
+	RWorkerRegister  = "jq:worker-register"
+	RJobList         = "jq:jobList"
+	RResultPubSubKey = "jq:result"
 )
+
+func MakeJobResultKey(jobID string) string {
+	return "jq:result:" + jobID
+}
 
 type WorkerRegisterRequest struct {
 	ID         string `msgpack:"id"`
@@ -74,5 +78,50 @@ func (c *Conn) PollNewJob(ctx context.Context, jobChan chan<- JobRegisterRequest
 
 		log.Printf("job added: %v", job)
 		jobChan <- job
+	}
+}
+
+const (
+	JobResultSuccess = "success"
+	JobResultFailure = "failure"
+)
+
+type JobResult struct {
+	JobID      string `msgpack:"id"`
+	Type       string `msgpack:"type"`
+	FinishedAt string `msgpack:"finished_at"`
+
+	// When type == JobResultSuccess
+	Result map[string]interface{} `msgpack:"result"`
+
+	// When type == JobResultFailure
+	Reason      string      `msgpack:"reason"`
+	ShouldRetry bool        `msgpack:"should_retry"`
+	Error       interface{} `msgpack:"error,omitempty"`
+	Message     string      `msgpack:"message"`
+}
+
+func (c *Conn) PollNewResult(ctx context.Context, resultChan chan<- JobResult) {
+	sub := c.r.Subscribe(ctx, RResultPubSubKey)
+	defer func() {
+		sub.Unsubscribe(ctx, RResultPubSubKey)
+		sub.Close()
+	}()
+	ch := sub.Channel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-ch:
+			var result JobResult
+			if err := msgpack.Unmarshal([]byte(msg.Payload), &result); err != nil {
+				log.Printf("invalid job result: %v", err)
+				continue
+			}
+
+			log.Printf("job result received")
+			resultChan <- result
+		}
 	}
 }
