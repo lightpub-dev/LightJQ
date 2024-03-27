@@ -13,11 +13,7 @@ func main() {
 	})
 	defer client.Close()
 
-	err := client.Register(context.Background(), &internal.WorkerInfo{
-		Id:        "1",
-		Name:      "worker-1",
-		Processes: 1,
-	})
+	err := client.Register(context.Background())
 	if err != nil {
 		return
 	}

@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -12,16 +11,17 @@ const (
 )
 
 type Client struct {
-	Worker
+	Worker Worker
+	Info   WorkerInfo
 }
 
 type Worker interface {
 	Close() error
-	Register(ctx context.Context, msg *WorkerInfo) error
+	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue() error
 
 	FlushAll() error
-	Self() *redis.Client
+	//Self() *redis.Client
 }
 
 type Message interface {

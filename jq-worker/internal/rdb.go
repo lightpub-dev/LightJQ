@@ -5,30 +5,34 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// RedisOpt is a struct that contains the address, username, and password of a Redis instance.
 type RedisOpt struct {
 	Addr string
 	User string
 	Pass string
 }
 
+// RedisConn is a struct that holds a connection to a Redis instance
+//
+// implements the Worker interface
 type RedisConn struct {
-	client *redis.Client
+	Client *redis.Client
 }
 
 func (r RedisConn) Close() error {
-	return r.client.Close()
+	return r.Client.Close()
 }
 
 func (r RedisConn) Self() *redis.Client {
-	return r.client
+	return r.Client
 }
 
-func (r RedisConn) Register(ctx context.Context, msg *WorkerInfo) error {
-	encMsg, err := msg.Encode()
+func (r RedisConn) Register(ctx context.Context, info *WorkerInfo) error {
+	encMsg, err := info.Encode()
 	if err != nil {
 		return err
 	}
-	return r.client.RPush(ctx, WorkerRegisterQueue, encMsg).Err()
+	return r.Client.RPush(ctx, WorkerRegisterQueue, encMsg).Err()
 }
 
 func (r RedisConn) Enqueue() error {
@@ -37,15 +41,5 @@ func (r RedisConn) Enqueue() error {
 }
 
 func (r RedisConn) FlushAll() error {
-	return r.client.FlushAll(context.Background()).Err()
-}
-
-func NewClient(redisOpt RedisOpt) *Client {
-	client := redis.NewClient(&redis.Options{
-		Addr:     redisOpt.Addr,
-		Username: redisOpt.User,
-		Password: redisOpt.Pass,
-	})
-
-	return &Client{Worker: RedisConn{client: client}}
+	return r.Client.FlushAll(context.Background()).Err()
 }

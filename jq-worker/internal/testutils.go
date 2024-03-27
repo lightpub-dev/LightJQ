@@ -23,7 +23,7 @@ func TestTeardown(t *testing.T, client *Client) {
 
 func flushAll(t *testing.T, client *Client) {
 	t.Helper()
-	err := client.FlushAll()
+	err := client.Worker.FlushAll()
 	if err != nil {
 		fmt.Println(err)
 		return
