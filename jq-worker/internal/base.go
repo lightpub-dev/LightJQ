@@ -16,6 +16,7 @@ type Client struct {
 }
 
 type Worker interface {
+	Close() error
 	Register(ctx context.Context, msg *WorkerInfo) error
 	Enqueue() error
 

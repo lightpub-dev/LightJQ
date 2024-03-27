@@ -15,6 +15,10 @@ type RedisConn struct {
 	client *redis.Client
 }
 
+func (r RedisConn) Close() error {
+	return r.client.Close()
+}
+
 func (r RedisConn) Self() *redis.Client {
 	return r.client
 }

@@ -11,6 +11,7 @@ func main() {
 		User: "",
 		Pass: "",
 	})
+	defer client.Close()
 
 	err := client.Register(context.Background(), &internal.WorkerInfo{
 		Id:        "1",

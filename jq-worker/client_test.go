@@ -9,6 +9,7 @@ import (
 func TestWorkerRegister(t *testing.T) {
 	t.Helper()
 	client := internal.TestSetup(t)
+	defer client.Close()
 
 	scenario := struct {
 		workerId        string
