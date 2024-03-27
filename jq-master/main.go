@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/lightpub-dev/lightjq/jq-master/scheduler"
@@ -83,5 +85,30 @@ func (m *JQMaster) Run(ctx context.Context) error {
 }
 
 func main() {
+	redisAddr := os.Getenv("REDIS_ADDR")
+	redisPort := os.Getenv("REDIS_PORT")
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisDatabaseStr := os.Getenv("REDIS_DATABASE")
 
+	redisDatabase := 0
+	if redisDatabaseStr != "" {
+		redisDatabaseInt, err := strconv.Atoi(redisDatabaseStr)
+		if err != nil {
+			log.Fatalf("invalid REDIS_DATABASE: %v", err)
+		}
+		redisDatabase = redisDatabaseInt
+	}
+
+	r := redis.NewClient(&redis.Options{
+		Addr:     redisAddr + ":" + redisPort,
+		Password: redisPassword,
+		DB:       redisDatabase,
+	})
+
+	master := NewJQMaster(r)
+	ctx := context.Background()
+	if err := master.Run(ctx); err != nil {
+		log.Fatalf("error running jq-master: %v", err)
+		os.Exit(1)
+	}
 }
