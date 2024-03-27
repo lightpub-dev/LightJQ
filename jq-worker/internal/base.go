@@ -16,12 +16,11 @@ type Client struct {
 }
 
 type Worker interface {
-	Close() error
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue() error
 
+	Close() error
 	FlushAll() error
-	//Self() *redis.Client
 }
 
 type Message interface {
@@ -31,7 +30,6 @@ type Message interface {
 
 // WorkerInfo represents information about a worker.
 type WorkerInfo struct {
-	Message
 	Id        string // unique identifier for the worker (e.g., UUID v7)
 	Name      string // name of the worker (e.g., "worker-1")
 	Processes int    // number of processes the worker can handle

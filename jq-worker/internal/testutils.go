@@ -5,13 +5,13 @@ import (
 	"testing"
 )
 
-func TestSetup(t *testing.T) *Client {
+func TestSetup(t *testing.T, opt ...ClientOption) *Client {
 	t.Helper()
 	client := NewClient(RedisOpt{
 		Addr: "localhost:6379",
 		User: "",
 		Pass: "",
-	})
+	}, opt...)
 	flushAll(t, client)
 	return client
 }
