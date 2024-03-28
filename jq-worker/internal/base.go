@@ -61,21 +61,6 @@ type JobInfo struct {
 	RegisteredAt time.Time              // time when the job was registered
 }
 
-type JobResult struct {
-	JobID      string `msgpack:"id"`
-	Type       string `msgpack:"type"`
-	FinishedAt string `msgpack:"finished_at"`
-
-	// When type == JobResultSuccess
-	Result map[string]interface{} `msgpack:"result"`
-
-	// When type == JobResultFailure
-	Reason      string      `msgpack:"reason"`
-	ShouldRetry bool        `msgpack:"should_retry"`
-	Error       interface{} `msgpack:"error,omitempty"`
-	Message     string      `msgpack:"message"`
-}
-
 // Encode encodes the JobInfo struct into a byte slice.
 func (j *JobInfo) Encode() ([]byte, error) {
 	return encodeMsg(j)
@@ -102,13 +87,16 @@ const (
 )
 
 type JobResult struct {
-	Id         string          // This should be the same as the JobInfo ID
-	Type       JobResultStatus // success or failure
-	FinishedAt time.Time       // time when the job finished ISO8601
+	JobID      string          `msgpack:"id"`
+	Type       JobResultStatus `msgpack:"type"`
+	FinishedAt string          `msgpack:"finished_at"`
 
-	Result map[string]interface{} // result of the job. Success -> result, Failure -> error
+	// When type == JobResultSuccess
+	Result map[string]interface{} `msgpack:"result"`
 
-	FailureReason JobFailureReason // reason for failure
-	ShouldRetry   bool             // whether the job should be retried
-	ErrorMessage  string           // error message if the job failed (for Web UI)
+	// When type == JobResultFailure
+	Reason      string      `msgpack:"reason"`
+	ShouldRetry bool        `msgpack:"should_retry"`
+	Error       interface{} `msgpack:"error,omitempty"`
+	Message     string      `msgpack:"message"`
 }

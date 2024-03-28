@@ -67,7 +67,7 @@ func (r RedisConn) ReportResult(ctx context.Context, jobId string) error {
 	finishedAt := time.Now().Format(time.RFC3339)
 	result := JobResult{
 		JobID:      jobId,
-		Type:       "success",
+		Type:       JobResultStatusSuccess,
 		FinishedAt: finishedAt,
 		Result:     nil,
 	}
