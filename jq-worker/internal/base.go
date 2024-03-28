@@ -25,7 +25,7 @@ type Worker interface {
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue(ctx context.Context, job *JobInfo) error
 	Dequeue(ctx context.Context) (*JobInfo, error)
-	ReportResult(ctx context.Context, jobId string) error
+	ReportResult(ctx context.Context, job *JobInfo) error
 
 	Close() error
 	FlushAll() error
@@ -78,6 +78,16 @@ type JobInfo struct {
 	KeepResult   bool                   `msgpack:"keep_result"` // whether to keep the result of the job
 	Timeout      time.Duration          `msgpack:"timeout"`     // timeout for the job
 	RegisteredAt string                 // time when the job was registered
+	StartedAt    string                 // time when the job was started
+}
+
+// GenerateProcessingInfo generates a ProcessingInfo struct from the JobInfo struct.
+func (j *JobInfo) GenerateProcessingInfo() ProcessingInfo {
+	return ProcessingInfo{
+		JobID:     j.Id,
+		StartedAt: j.StartedAt,
+		Timeout:   j.Timeout,
+	}
 }
 
 // Encode encodes the JobInfo struct into a byte slice.

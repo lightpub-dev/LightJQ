@@ -71,28 +71,25 @@ func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
 		return nil, err
 	}
 
-	// 3. Notify that the job is being processed
-	err = r.notifyProcessing(ctx, &JobInfo{}, startedAt)
-	if err != nil {
+	// 3. Decode the job
+	var job JobInfo
+	if err := job.Decode([]byte(jobEnc)); err != nil {
 		return nil, err
 	}
 
-	// 4. Decode the job
-	var job JobInfo
-	if err := job.Decode([]byte(jobEnc)); err != nil {
+	// 4. Notify that the job is being processed
+	job.StartedAt = startedAt
+	err = r.notifyProcessing(ctx, &job)
+	if err != nil {
 		return nil, err
 	}
 	return &job, nil
 }
 
 // notifyProcessing notifies the master that the worker is processing a job
-func (r RedisConn) notifyProcessing(ctx context.Context, job *JobInfo, startedAt string) error {
-	processingInfo := ProcessingInfo{
-		JobID:     job.Id,
-		StartedAt: startedAt,
-		Timeout:   job.Timeout,
-	}
-	encMsg, err := encodeMsg(&processingInfo)
+func (r RedisConn) notifyProcessing(ctx context.Context, job *JobInfo) error {
+	processingInfo := job.GenerateProcessingInfo()
+	encMsg, err := encodeMsg(processingInfo)
 	if err != nil {
 		return err
 	}
@@ -100,19 +97,39 @@ func (r RedisConn) notifyProcessing(ctx context.Context, job *JobInfo, startedAt
 	return r.Client.SAdd(ctx, ProcessingSet, encMsg).Err()
 }
 
-func (r RedisConn) ReportResult(ctx context.Context, jobId string) error {
+// removeProcessing removes the job from the processing set
+func (r RedisConn) removeProcessing(ctx context.Context, job *JobInfo) error {
+	processingInfo := job.GenerateProcessingInfo()
+	encMsg, err := encodeMsg(processingInfo)
+	if err != nil {
+		return err
+	}
+
+	return r.Client.SRem(ctx, ProcessingSet, encMsg).Err()
+}
+
+func (r RedisConn) ReportResult(ctx context.Context, job *JobInfo) error {
 	finishedAt := time.Now().Format(time.RFC3339)
 	result := JobResult{
-		JobID:      jobId,
+		JobID:      job.Id,
 		Type:       JobResultStatusSuccess,
 		FinishedAt: finishedAt,
 		Result:     nil,
 	}
+
+	// 1. Encode the result
 	encMsg, err := encodeMsg(&result)
 	if err != nil {
 		return err
 	}
 
+	// 2. Remove the job from the processing set
+	err = r.removeProcessing(ctx, job)
+	if err != nil {
+		return err
+	}
+
+	// 3. Push the result to the result queue
 	return r.Client.RPush(ctx, ResultQueue, encMsg).Err()
 }
 

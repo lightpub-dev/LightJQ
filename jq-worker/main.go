@@ -67,7 +67,7 @@ func main() {
 						continue
 					}
 
-					err = client.ReportResult(context.Background(), job.Id)
+					err = client.ReportResult(context.Background(), job)
 					if err != nil {
 						fmt.Println(err)
 					}
