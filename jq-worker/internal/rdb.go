@@ -98,8 +98,8 @@ func (r RedisConn) notifyProcessing(ctx context.Context, job *JobInfo) error {
 	return r.Client.SAdd(ctx, ProcessingSet, encMsg).Err()
 }
 
-// removeProcessing removes the job from the processing set
-func (r RedisConn) removeProcessing(ctx context.Context, jobId string) error {
+// removeProcessing_slow removes the job from the processing set
+func (r RedisConn) removeProcessing_slow(ctx context.Context, jobId string) error {
 	// find the job in the ProcessingSet and remove it
 	encMsgs, err := r.Client.SMembers(ctx, ProcessingSet).Result()
 	if err != nil {
@@ -107,6 +107,7 @@ func (r RedisConn) removeProcessing(ctx context.Context, jobId string) error {
 	}
 
 	// iterate through the messages and remove the job if found
+	// TODO: use a more efficient way to remove the job
 	for _, msg := range encMsgs {
 		encMsg := []byte(msg)
 		var decMsg ProcessingInfo
@@ -133,7 +134,7 @@ func (r RedisConn) ReportResult(ctx context.Context, result *JobResult) error {
 	}
 
 	// 2. Remove the job from the processing set
-	err = r.removeProcessing(ctx, result.JobID)
+	err = r.removeProcessing_slow(ctx, result.JobID)
 	if err != nil {
 		return err
 	}
