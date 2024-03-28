@@ -56,15 +56,25 @@ func (r RedisConn) Enqueue(ctx context.Context, job *JobInfo) error {
 }
 
 func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
+	// 1. Pop a job from the global queue
 	encMsg, err := r.Client.BLPop(ctx, 0, GlobalQueue).Result()
 	if err != nil {
 		return nil, err
 	}
-	jobId := "jq:job:" + encMsg[1]
+
+	// 2. Get the job from the job queue
+	jobId := JobQueuePrefix + encMsg[1]
 	jobEnc, err := r.Client.Get(ctx, jobId).Result()
 	if err != nil {
 		return nil, err
 	}
+
+	// 3. Notify that the job is being processed
+	if err := r.Client.RPush(ctx, ProcessingQueue, jobId).Err(); err != nil {
+		return nil, err
+	}
+
+	// 4. Decode the job
 	var job JobInfo
 	if err := job.Decode([]byte(jobEnc)); err != nil {
 		return nil, err

@@ -110,7 +110,7 @@ func (c *Client) Register(ctx context.Context) error {
 
 // Enqueue **THIS IS A DEBUGGING FUNCTION**
 func (c *Client) Enqueue(ctx context.Context, job *JobInfo) error {
-	job.RegisteredAt = time.Now()
+	job.RegisteredAt = time.Now().Format(time.RFC3339)
 	return c.Worker.Enqueue(ctx, job)
 }
 
