@@ -32,9 +32,9 @@ type Message interface {
 
 // WorkerInfo represents information about a worker.
 type WorkerInfo struct {
-	Id        string // unique identifier for the worker (e.g., UUID v7)
-	Name      string // name of the worker (e.g., "worker-1")
-	Processes int    // number of processes the worker can handle
+	Id        string `msgpack:"id"`          // unique identifier for the worker (e.g., UUID v7)
+	Name      string `msgpack:"worker_name"` // name of the worker (e.g., "worker-1")
+	Processes int    `msgpack:"processes"`   // number of processes the worker can handle
 }
 
 // Encode encodes the WorkerInfo struct into a byte slice.
