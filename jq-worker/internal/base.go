@@ -21,6 +21,7 @@ type Worker interface {
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue(ctx context.Context, job *JobInfo) error
 	Dequeue(ctx context.Context) (*JobInfo, error)
+	ReportResult(ctx context.Context, jobId string) error
 
 	Close() error
 	FlushAll() error
@@ -58,6 +59,21 @@ type JobInfo struct {
 	KeepResult   bool                   `msgpack:"keep_result"` // whether to keep the result of the job
 	Timeout      time.Duration          `msgpack:"timeout"`     // timeout for the job
 	RegisteredAt time.Time              // time when the job was registered
+}
+
+type JobResult struct {
+	JobID      string `msgpack:"id"`
+	Type       string `msgpack:"type"`
+	FinishedAt string `msgpack:"finished_at"`
+
+	// When type == JobResultSuccess
+	Result map[string]interface{} `msgpack:"result"`
+
+	// When type == JobResultFailure
+	Reason      string      `msgpack:"reason"`
+	ShouldRetry bool        `msgpack:"should_retry"`
+	Error       interface{} `msgpack:"error,omitempty"`
+	Message     string      `msgpack:"message"`
 }
 
 // Encode encodes the JobInfo struct into a byte slice.

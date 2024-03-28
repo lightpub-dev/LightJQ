@@ -17,10 +17,11 @@ func NewConn(r *redis.Client) *Conn {
 }
 
 const (
-	RGlobalQueue     = "jq:globalQueue"
-	RWorkerRegister  = "jq:workerRegister"
-	RJobList         = "jq:jobList"
-	RResultPubSubKey = "jq:result"
+	RGlobalQueue     = "jq:globalQueue"    // used to distribute jobs to workers
+	RWorkerRegister  = "jq:workerRegister" // used to receive new worker registrations from workers
+	RJobList         = "jq:jobList"        // used to receive new jobs from pushers
+	RResultPubSubKey = "jq:result"         // used to publish results to pushers
+	RResultQueue     = "jq:resultQueue"    // used to receive results from workers
 )
 
 func MakeJobResultKey(jobID string) string {
@@ -102,26 +103,20 @@ type JobResult struct {
 }
 
 func (c *Conn) PollNewResult(ctx context.Context, resultChan chan<- JobResult) {
-	sub := c.r.Subscribe(ctx, RResultPubSubKey)
-	defer func() {
-		sub.Unsubscribe(ctx, RResultPubSubKey)
-		sub.Close()
-	}()
-	ch := sub.Channel()
-
+	// poll new jobs
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-ch:
-			var result JobResult
-			if err := msgpack.Unmarshal([]byte(msg.Payload), &result); err != nil {
-				log.Printf("invalid job result: %v", err)
-				continue
-			}
-
-			log.Printf("job result received")
-			resultChan <- result
+		s, err := c.r.BLPop(ctx, 0, RResultQueue).Result()
+		if err != nil {
+			panic(err)
 		}
+		resultByte := s[1]
+		var jobResult JobResult
+		if err = msgpack.Unmarshal([]byte(resultByte), &jobResult); err != nil {
+			log.Printf("invalid job result: %v", err)
+			continue
+		}
+
+		log.Printf("job (%s) received result", jobResult.JobID)
+		resultChan <- jobResult
 	}
 }

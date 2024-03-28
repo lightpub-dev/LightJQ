@@ -28,24 +28,6 @@ func NewJQMaster(r *redis.Client) *JQMaster {
 	}
 }
 
-func (m *JQMaster) distributeJobs(ctx context.Context) error {
-	for {
-		workerAvailable := true
-		if workerAvailable {
-			job, err := m.sched.BlockJobPop(ctx)
-			if err != nil {
-				log.Printf("error getting job: %v", err)
-				continue
-			}
-
-			if err := m.conn.DistributeJob(ctx, job.ID); err != nil {
-				log.Printf("error distributing job: %v", err)
-				continue
-			}
-		}
-	}
-}
-
 func (m *JQMaster) Run(ctx context.Context) error {
 	workerChan := make(chan transport.WorkerRegisterRequest)
 	jobChan := make(chan transport.JobRegisterRequest)
@@ -55,7 +37,7 @@ func (m *JQMaster) Run(ctx context.Context) error {
 	go m.conn.PollNewJob(ctx, jobChan)
 	go m.conn.PollNewResult(ctx, resultChan)
 
-	go m.distributeJobs(ctx)
+	go m.sched.DistributeJobs(ctx)
 
 	for {
 		select {

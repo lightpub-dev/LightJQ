@@ -16,6 +16,9 @@ func (s *Scheduler) ProcessResult(ctx context.Context, result transport.JobResul
 		if err := s.r.Del(ctx, jobKey).Err(); err != nil {
 			return err
 		}
+		// one worker is now available
+		s.notifyJobDone()
+		// send back the result to pusher
 		return s.tran.PublishResult(ctx, result)
 	case transport.JobResultFailure:
 		return s.retryJob(ctx, result)
@@ -43,6 +46,8 @@ func (s *Scheduler) retryJob(ctx context.Context, result transport.JobResult) er
 		if err := s.r.Del(ctx, jobKey).Err(); err != nil {
 			return err
 		}
+		// one worker is now available
+		s.notifyJobDone()
 		// report error to pusher
 		return s.tran.PublishResult(ctx, result)
 	}

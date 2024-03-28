@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"log"
+	"sync"
 	"time"
 
 	"github.com/lightpub-dev/lightjq/jq-master/transport"
@@ -25,15 +27,15 @@ type Worker struct {
 }
 
 type Job struct {
-	ID           string
-	Name         string
-	Argument     map[string]interface{}
-	Priority     int
-	MaxRetry     int
-	CurrentRetry int
-	KeepResult   bool
-	Timeout      time.Duration
-	RegisteredAt time.Time
+	ID           string                 `msgpack:"id"`
+	Name         string                 `msgpack:"name"`
+	Argument     map[string]interface{} `msgpack:"argument"`
+	Priority     int                    `msgpack:"priority"`
+	MaxRetry     int                    `msgpack:"max_retry"`
+	CurrentRetry int                    `msgpack:"current_retry"`
+	KeepResult   bool                   `msgpack:"keep_result"`
+	Timeout      time.Duration          `msgpack:"timeout"`
+	RegisteredAt time.Time              `msgpack:"registered_at"`
 }
 
 func (j Job) CalculatePriorityScore() float64 {
@@ -44,6 +46,7 @@ type Scheduler struct {
 	r       *redis.Client
 	workers []*Worker
 
+	workerCountLock sync.Mutex
 	occupiedWorkers int
 	maxProcesses    int
 
@@ -127,4 +130,41 @@ func (s *Scheduler) BlockJobPop(ctx context.Context) (Job, error) {
 	}
 
 	return job, nil
+}
+
+func (s *Scheduler) DistributeJobs(ctx context.Context) error {
+	for {
+		s.workerCountLock.Lock()
+		workerAvailable := s.HasEmpty()
+		if workerAvailable {
+			s.occupiedWorkers++
+			s.workerCountLock.Unlock()
+
+			job, err := s.BlockJobPop(ctx)
+			if err != nil {
+				log.Printf("error getting job: %v", err)
+				s.notifyJobDone()
+				continue
+			}
+
+			if err := s.tran.DistributeJob(ctx, job.ID); err != nil {
+				log.Printf("error distributing job: %v", err)
+				s.notifyJobDone()
+				continue
+			}
+		} else {
+			s.workerCountLock.Unlock()
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
+
+func (s *Scheduler) notifyJobDone() {
+	s.workerCountLock.Lock()
+	defer s.workerCountLock.Unlock()
+
+	s.occupiedWorkers--
+	if s.occupiedWorkers < 0 {
+		s.occupiedWorkers = 0
+	}
 }

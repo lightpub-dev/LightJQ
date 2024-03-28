@@ -64,6 +64,12 @@ func main() {
 					err = doProcess(job)
 					if err != nil {
 						fmt.Println(err)
+						continue
+					}
+
+					err = client.ReportResult(context.Background(), job.Id)
+					if err != nil {
+						fmt.Println(err)
 					}
 				}
 			}()
@@ -84,7 +90,8 @@ func getJob(client *internal.Client) (*internal.JobInfo, error) {
 
 func doProcess(job *internal.JobInfo) error {
 	fmt.Printf("Processing job: %s\n", job.Name)
-	time.Sleep(2 * time.Second)
+	// random between 1 ~ 3 seconds
+	time.Sleep(time.Duration(1+time.Now().UnixNano()%3) * time.Second)
 	fmt.Printf("Processed job: %s\n", job.Name)
 	return nil
 }
