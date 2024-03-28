@@ -2,10 +2,11 @@ package internal
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"os"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -93,4 +94,8 @@ func (c *Client) Enqueue(ctx context.Context, job *JobInfo) error {
 
 func (c *Client) Dequeue(ctx context.Context) (*JobInfo, error) {
 	return c.Worker.Dequeue(ctx)
+}
+
+func (c *Client) ReportResult(ctx context.Context, jobId string) error {
+	return c.Worker.ReportResult(ctx, jobId)
 }

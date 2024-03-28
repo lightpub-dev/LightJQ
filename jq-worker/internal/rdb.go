@@ -2,6 +2,8 @@ package internal
 
 import (
 	"context"
+	"time"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -41,19 +43,40 @@ func (r RedisConn) Enqueue(ctx context.Context, job *JobInfo) error {
 	if err != nil {
 		return err
 	}
-	return r.Client.RPush(ctx, GlobalQueue, encMsg).Err()
+	return r.Client.RPush(ctx, JobRegisterQueue, encMsg).Err()
 }
 
 func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
-	encMsg, err := r.Client.LPop(ctx, GlobalQueue).Bytes()
+	encMsg, err := r.Client.BLPop(ctx, 0, GlobalQueue).Result()
+	if err != nil {
+		return nil, err
+	}
+	jobId := "jq:job:" + encMsg[1]
+	jobEnc, err := r.Client.Get(ctx, jobId).Result()
 	if err != nil {
 		return nil, err
 	}
 	var job JobInfo
-	if err := job.Decode(encMsg); err != nil {
+	if err := job.Decode([]byte(jobEnc)); err != nil {
 		return nil, err
 	}
 	return &job, nil
+}
+
+func (r RedisConn) ReportResult(ctx context.Context, jobId string) error {
+	finishedAt := time.Now().Format(time.RFC3339)
+	result := JobResult{
+		JobID:      jobId,
+		Type:       "success",
+		FinishedAt: finishedAt,
+		Result:     nil,
+	}
+	encMsg, err := encodeMsg(&result)
+	if err != nil {
+		return err
+	}
+
+	return r.Client.RPush(ctx, ResultQueue, encMsg).Err()
 }
 
 func (r RedisConn) FlushAll() error {
