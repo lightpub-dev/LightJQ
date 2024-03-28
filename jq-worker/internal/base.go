@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	PingChannel         = "jq:ping"
 	WorkerRegisterQueue = "jq:workerRegister"
 	GlobalQueue         = "jq:globalQueue"
 	ResultQueue         = "jq:resultQueue"
@@ -18,6 +19,7 @@ type Client struct {
 }
 
 type Worker interface {
+	Ping(ctx context.Context, workerID string) error
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue(ctx context.Context, job *JobInfo) error
 	Dequeue(ctx context.Context) (*JobInfo, error)
@@ -30,6 +32,21 @@ type Worker interface {
 type Message interface {
 	Encode() ([]byte, error)
 	Decode([]byte) error
+}
+
+// PingMessage represents a ping message to notify master that the worker is alive.
+type PingMessage struct {
+	WorkerID string `msgpack:"worker_id"`
+}
+
+// Encode encodes the PingMessage struct into a byte slice.
+func (p *PingMessage) Encode() ([]byte, error) {
+	return encodeMsg(p)
+}
+
+// Decode decodes the byte slice into a PingMessage struct.
+func (p *PingMessage) Decode(data []byte) error {
+	return decodeMsg(data, p)
 }
 
 // WorkerInfo represents information about a worker.

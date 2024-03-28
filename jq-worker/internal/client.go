@@ -11,6 +11,7 @@ import (
 
 const (
 	DefaultNumProcesses = 1
+	DefaultPingInterval = 5 * time.Second
 )
 
 func genUUIDv7() string {
@@ -71,7 +72,24 @@ func NewClient(redisOpt RedisOpt, opts ...ClientOption) *Client {
 		opt.apply(&info)
 	}
 
-	return &Client{Worker: RedisConn{client}, Info: info}
+	rdbClient := Client{Worker: RedisConn{client}, Info: info}
+
+	// send a ping message to the master
+	go func() {
+		ticker := time.NewTicker(DefaultPingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				err := rdbClient.Ping(context.Background())
+				if err != nil {
+					continue
+				}
+			}
+		}
+	}()
+
+	return &rdbClient
 }
 
 func (c *Client) FlushAll() error {
@@ -80,6 +98,10 @@ func (c *Client) FlushAll() error {
 
 func (c *Client) Close() error {
 	return c.Worker.Close()
+}
+
+func (c *Client) Ping(ctx context.Context) error {
+	return c.Worker.Ping(ctx, c.Info.Id)
 }
 
 func (c *Client) Register(ctx context.Context) error {
