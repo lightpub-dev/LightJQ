@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -98,25 +99,33 @@ func (r RedisConn) notifyProcessing(ctx context.Context, job *JobInfo) error {
 }
 
 // removeProcessing removes the job from the processing set
-func (r RedisConn) removeProcessing(ctx context.Context, job *JobInfo) error {
-	processingInfo := job.GenerateProcessingInfo()
-	encMsg, err := encodeMsg(processingInfo)
+func (r RedisConn) removeProcessing(ctx context.Context, jobId string) error {
+	// find the job in the ProcessingSet and remove it
+	encMsgs, err := r.Client.SMembers(ctx, ProcessingSet).Result()
 	if err != nil {
 		return err
 	}
 
-	return r.Client.SRem(ctx, ProcessingSet, encMsg).Err()
-}
+	// iterate through the messages and remove the job if found
+	for _, msg := range encMsgs {
+		encMsg := []byte(msg)
+		var decMsg ProcessingInfo
+		err := decodeMsg(encMsg, &decMsg)
+		if err != nil {
+			return err
+		}
 
-func (r RedisConn) ReportResult(ctx context.Context, job *JobInfo) error {
-	finishedAt := time.Now().Format(time.RFC3339)
-	result := JobResult{
-		JobID:      job.Id,
-		Type:       JobResultStatusSuccess,
-		FinishedAt: finishedAt,
-		Result:     nil,
+		// remove the job if found
+		if decMsg.JobID == jobId {
+			return r.Client.SRem(ctx, ProcessingSet, encMsg).Err()
+		}
 	}
 
+	// return an error if the job is not found
+	return fmt.Errorf("job not found in the processing set")
+}
+
+func (r RedisConn) ReportResult(ctx context.Context, result *JobResult) error {
 	// 1. Encode the result
 	encMsg, err := encodeMsg(&result)
 	if err != nil {
@@ -124,7 +133,7 @@ func (r RedisConn) ReportResult(ctx context.Context, job *JobInfo) error {
 	}
 
 	// 2. Remove the job from the processing set
-	err = r.removeProcessing(ctx, job)
+	err = r.removeProcessing(ctx, result.JobID)
 	if err != nil {
 		return err
 	}

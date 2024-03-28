@@ -25,8 +25,7 @@ type Worker interface {
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue(ctx context.Context, job *JobInfo) error
 	Dequeue(ctx context.Context) (*JobInfo, error)
-	ReportResult(ctx context.Context, job *JobInfo) error
-
+	ReportResult(ctx context.Context, result *JobResult) error
 	Close() error
 	FlushAll() error
 }

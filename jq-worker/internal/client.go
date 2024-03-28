@@ -118,6 +118,6 @@ func (c *Client) Dequeue(ctx context.Context) (*JobInfo, error) {
 	return c.Worker.Dequeue(ctx)
 }
 
-func (c *Client) ReportResult(ctx context.Context, job *JobInfo) error {
-	return c.Worker.ReportResult(ctx, job)
+func (c *Client) ReportResult(ctx context.Context, result *JobResult) error {
+	return c.Worker.ReportResult(ctx, result)
 }
