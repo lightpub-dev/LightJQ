@@ -9,6 +9,7 @@ const (
 	WorkerRegisterQueue = "jq:workerRegister"
 	GlobalQueue         = "jq:globalQueue"
 	ResultQueue         = "jq:resultQueue"
+	JobRegisterQueue    = "jq:jobList"
 )
 
 type Client struct {
@@ -20,6 +21,7 @@ type Worker interface {
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue(ctx context.Context, job *JobInfo) error
 	Dequeue(ctx context.Context) (*JobInfo, error)
+	ReportResult(ctx context.Context, jobId string) error
 
 	Close() error
 	FlushAll() error
@@ -32,9 +34,9 @@ type Message interface {
 
 // WorkerInfo represents information about a worker.
 type WorkerInfo struct {
-	Id        string // unique identifier for the worker (e.g., UUID v7)
-	Name      string // name of the worker (e.g., "worker-1")
-	Processes int    // number of processes the worker can handle
+	Id        string `msgpack:"id"`          // unique identifier for the worker (e.g., UUID v7)
+	Name      string `msgpack:"worker_name"` // name of the worker (e.g., "worker-1")
+	Processes int    `msgpack:"processes"`   // number of processes the worker can handle
 }
 
 // Encode encodes the WorkerInfo struct into a byte slice.
@@ -48,15 +50,30 @@ func (w *WorkerInfo) Decode(data []byte) error {
 }
 
 type JobInfo struct {
-	Id           string                 // unique identifier for the job (e.g., UUID v7)
-	Name         string                 // name of the job (e.g., "job-1")
-	Argument     map[string]interface{} // arguments for the job
-	Priority     int                    // priority of the job (0 is the highest priority)
-	MaxRetry     int                    // maximum number of retries for the job
+	Id           string                 `msgpack:"id"`        // unique identifier for the job (e.g., UUID v7)
+	Name         string                 `msgpack:"name"`      // name of the job (e.g., "job-1")
+	Argument     map[string]interface{} `msgpack:"argument"`  // arguments for the job
+	Priority     int                    `msgpack:"priority"`  // priority of the job (0 is the highest priority)
+	MaxRetry     int                    `msgpack:"max_retry"` // maximum number of retries for the job
 	CurrentRetry int                    // current number of retries for the job
-	KeepResult   bool                   // whether to keep the result of the job
-	Timeout      time.Duration          // timeout for the job
+	KeepResult   bool                   `msgpack:"keep_result"` // whether to keep the result of the job
+	Timeout      time.Duration          `msgpack:"timeout"`     // timeout for the job
 	RegisteredAt time.Time              // time when the job was registered
+}
+
+type JobResult struct {
+	JobID      string `msgpack:"id"`
+	Type       string `msgpack:"type"`
+	FinishedAt string `msgpack:"finished_at"`
+
+	// When type == JobResultSuccess
+	Result map[string]interface{} `msgpack:"result"`
+
+	// When type == JobResultFailure
+	Reason      string      `msgpack:"reason"`
+	ShouldRetry bool        `msgpack:"should_retry"`
+	Error       interface{} `msgpack:"error,omitempty"`
+	Message     string      `msgpack:"message"`
 }
 
 // Encode encodes the JobInfo struct into a byte slice.
