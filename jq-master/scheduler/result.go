@@ -17,7 +17,7 @@ func (s *Scheduler) ProcessResult(ctx context.Context, result transport.JobResul
 			return err
 		}
 		// one worker is now available
-		s.notifyJobDone()
+		s.removeFromProcessingJobs(ctx, result.JobID)
 		// send back the result to pusher
 		return s.tran.PublishResult(ctx, result)
 	case transport.JobResultFailure:
@@ -47,7 +47,7 @@ func (s *Scheduler) retryJob(ctx context.Context, result transport.JobResult) er
 			return err
 		}
 		// one worker is now available
-		s.notifyJobDone()
+		s.removeFromProcessingJobs(ctx, result.JobID)
 		// report error to pusher
 		return s.tran.PublishResult(ctx, result)
 	}
