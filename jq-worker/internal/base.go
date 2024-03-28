@@ -95,8 +95,8 @@ type JobResult struct {
 	Result map[string]interface{} `msgpack:"result"`
 
 	// When type == JobResultFailure
-	Reason      string      `msgpack:"reason"`
-	ShouldRetry bool        `msgpack:"should_retry"`
-	Error       interface{} `msgpack:"error,omitempty"`
-	Message     string      `msgpack:"message"`
+	Reason      JobFailureReason `msgpack:"reason"`
+	ShouldRetry bool             `msgpack:"should_retry"`
+	Error       interface{}      `msgpack:"error,omitempty"`
+	Message     string           `msgpack:"message"`
 }
