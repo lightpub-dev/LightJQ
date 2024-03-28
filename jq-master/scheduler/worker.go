@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/lightpub-dev/lightjq/jq-master/transport"
@@ -43,9 +44,10 @@ func (j Job) CalculatePriorityScore() float64 {
 }
 
 type Scheduler struct {
-	r       *redis.Client
-	workers []*Worker
+	r *redis.Client
 
+	workersMutex sync.Mutex
+	workers      []*Worker
 	maxProcesses int
 
 	tran *transport.Conn
@@ -69,8 +71,24 @@ func NewScheduler(r *redis.Client, tran *transport.Conn) *Scheduler {
 }
 
 func (s *Scheduler) AddWorker(w *Worker) {
+	s.workersMutex.Lock()
+	defer s.workersMutex.Unlock()
+
 	s.workers = append(s.workers, w)
 	s.maxProcesses += w.MaxProcesses
+}
+
+func (s *Scheduler) RemoveWorker(workerID string) {
+	s.workersMutex.Lock()
+	defer s.workersMutex.Unlock()
+
+	for i, worker := range s.workers {
+		if worker.ID == workerID {
+			s.workers = append(s.workers[:i], s.workers[i+1:]...)
+			s.maxProcesses -= worker.MaxProcesses
+			return
+		}
+	}
 }
 
 func (s *Scheduler) getCurrentProcessingJobsN(ctx context.Context) (int64, error) {

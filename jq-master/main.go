@@ -43,6 +43,10 @@ func (m *JQMaster) Run(ctx context.Context) error {
 		select {
 		case newWorker := <-workerChan:
 			m.sched.AddWorker(scheduler.NewWorker(newWorker.ID, newWorker.WorkerName, newWorker.Processes))
+			go transport.NewPingChecker(m.conn, newWorker.ID).PingCheckLoop(ctx, func(failure transport.PingFailure) {
+				log.Printf("dropping worker %s (ping check failed)", failure.WorkerID)
+				m.sched.RemoveWorker(failure.WorkerID)
+			})
 		case newJob := <-jobChan:
 			if err := m.sched.AddJob(ctx, scheduler.Job{
 				ID:           newJob.ID,
