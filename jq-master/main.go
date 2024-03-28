@@ -87,8 +87,16 @@ func (m *JQMaster) Run(ctx context.Context) error {
 func main() {
 	redisAddr := os.Getenv("REDIS_ADDR")
 	redisPort := os.Getenv("REDIS_PORT")
+	redisUser := os.Getenv("REDIS_USER")
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	redisDatabaseStr := os.Getenv("REDIS_DATABASE")
+
+	if redisAddr == "" {
+		redisAddr = "localhost"
+	}
+	if redisPort == "" {
+		redisPort = "6379"
+	}
 
 	redisDatabase := 0
 	if redisDatabaseStr != "" {
@@ -101,12 +109,14 @@ func main() {
 
 	r := redis.NewClient(&redis.Options{
 		Addr:     redisAddr + ":" + redisPort,
+		Username: redisUser,
 		Password: redisPassword,
 		DB:       redisDatabase,
 	})
 
 	master := NewJQMaster(r)
 	ctx := context.Background()
+	log.Printf("jq-master started")
 	if err := master.Run(ctx); err != nil {
 		log.Fatalf("error running jq-master: %v", err)
 		os.Exit(1)

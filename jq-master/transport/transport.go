@@ -18,7 +18,7 @@ func NewConn(r *redis.Client) *Conn {
 
 const (
 	RGlobalQueue     = "jq:globalQueue"
-	RWorkerRegister  = "jq:worker-register"
+	RWorkerRegister  = "jq:workerRegister"
 	RJobList         = "jq:jobList"
 	RResultPubSubKey = "jq:result"
 )
