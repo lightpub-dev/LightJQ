@@ -25,8 +25,17 @@ func (r RedisConn) Close() error {
 	return r.Client.Close()
 }
 
-func (r RedisConn) Self() *redis.Client {
-	return r.Client
+func (r RedisConn) Ping(ctx context.Context, workerID string) error {
+	pingMsg := PingMessage{
+		WorkerID: workerID,
+	}
+	encMsg, err := pingMsg.Encode()
+	if err != nil {
+		return err
+	}
+
+	// publish the ping message to the worker queue
+	return r.Client.Publish(ctx, PingChannel, encMsg).Err()
 }
 
 func (r RedisConn) Register(ctx context.Context, info *WorkerInfo) error {
@@ -67,7 +76,7 @@ func (r RedisConn) ReportResult(ctx context.Context, jobId string) error {
 	finishedAt := time.Now().Format(time.RFC3339)
 	result := JobResult{
 		JobID:      jobId,
-		Type:       "success",
+		Type:       JobResultStatusSuccess,
 		FinishedAt: finishedAt,
 		Result:     nil,
 	}

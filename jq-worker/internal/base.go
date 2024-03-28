@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	PingChannel         = "jq:ping"
 	WorkerRegisterQueue = "jq:workerRegister"
 	GlobalQueue         = "jq:globalQueue"
 	ResultQueue         = "jq:resultQueue"
@@ -18,6 +19,7 @@ type Client struct {
 }
 
 type Worker interface {
+	Ping(ctx context.Context, workerID string) error
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue(ctx context.Context, job *JobInfo) error
 	Dequeue(ctx context.Context) (*JobInfo, error)
@@ -30,6 +32,21 @@ type Worker interface {
 type Message interface {
 	Encode() ([]byte, error)
 	Decode([]byte) error
+}
+
+// PingMessage represents a ping message to notify master that the worker is alive.
+type PingMessage struct {
+	WorkerID string `msgpack:"worker_id"`
+}
+
+// Encode encodes the PingMessage struct into a byte slice.
+func (p *PingMessage) Encode() ([]byte, error) {
+	return encodeMsg(p)
+}
+
+// Decode decodes the byte slice into a PingMessage struct.
+func (p *PingMessage) Decode(data []byte) error {
+	return decodeMsg(data, p)
 }
 
 // WorkerInfo represents information about a worker.
@@ -61,21 +78,6 @@ type JobInfo struct {
 	RegisteredAt time.Time              // time when the job was registered
 }
 
-type JobResult struct {
-	JobID      string `msgpack:"id"`
-	Type       string `msgpack:"type"`
-	FinishedAt string `msgpack:"finished_at"`
-
-	// When type == JobResultSuccess
-	Result map[string]interface{} `msgpack:"result"`
-
-	// When type == JobResultFailure
-	Reason      string      `msgpack:"reason"`
-	ShouldRetry bool        `msgpack:"should_retry"`
-	Error       interface{} `msgpack:"error,omitempty"`
-	Message     string      `msgpack:"message"`
-}
-
 // Encode encodes the JobInfo struct into a byte slice.
 func (j *JobInfo) Encode() ([]byte, error) {
 	return encodeMsg(j)
@@ -84,4 +86,34 @@ func (j *JobInfo) Encode() ([]byte, error) {
 // Decode decodes the byte slice into a JobInfo struct.
 func (j *JobInfo) Decode(data []byte) error {
 	return decodeMsg(data, j)
+}
+
+type JobResultStatus string
+
+const (
+	JobResultStatusSuccess JobResultStatus = "success"
+	JobResultStatusFailure JobResultStatus = "failure"
+)
+
+type JobFailureReason string
+
+const (
+	JobFailureReasonTimeout     JobFailureReason = "timeout"
+	JobFailureReasonServerIssue JobFailureReason = "server_issue"
+	JobFailureReasonUnknown     JobFailureReason = "unknown"
+)
+
+type JobResult struct {
+	JobID      string          `msgpack:"id"`
+	Type       JobResultStatus `msgpack:"type"`
+	FinishedAt string          `msgpack:"finished_at"`
+
+	// When type == JobResultSuccess
+	Result map[string]interface{} `msgpack:"result"`
+
+	// When type == JobResultFailure
+	Reason      JobFailureReason `msgpack:"reason"`
+	ShouldRetry bool             `msgpack:"should_retry"`
+	Error       interface{}      `msgpack:"error,omitempty"`
+	Message     string           `msgpack:"message"`
 }
