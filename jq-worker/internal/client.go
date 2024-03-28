@@ -110,7 +110,7 @@ func (c *Client) Register(ctx context.Context) error {
 
 // Enqueue **THIS IS A DEBUGGING FUNCTION**
 func (c *Client) Enqueue(ctx context.Context, job *JobInfo) error {
-	job.RegisteredAt = time.Now()
+	job.RegisteredAt = time.Now().Format(time.RFC3339)
 	return c.Worker.Enqueue(ctx, job)
 }
 
@@ -118,6 +118,6 @@ func (c *Client) Dequeue(ctx context.Context) (*JobInfo, error) {
 	return c.Worker.Dequeue(ctx)
 }
 
-func (c *Client) ReportResult(ctx context.Context, jobId string) error {
-	return c.Worker.ReportResult(ctx, jobId)
+func (c *Client) ReportResult(ctx context.Context, result *JobResult) error {
+	return c.Worker.ReportResult(ctx, result)
 }

@@ -8,9 +8,11 @@ import (
 const (
 	PingChannel         = "jq:ping"
 	WorkerRegisterQueue = "jq:workerRegister"
+	JobQueuePrefix      = "jq:job:"
 	GlobalQueue         = "jq:globalQueue"
 	ResultQueue         = "jq:resultQueue"
 	JobRegisterQueue    = "jq:jobList"
+	ProcessingSet       = "jq:processing"
 )
 
 type Client struct {
@@ -23,8 +25,7 @@ type Worker interface {
 	Register(ctx context.Context, info *WorkerInfo) error
 	Enqueue(ctx context.Context, job *JobInfo) error
 	Dequeue(ctx context.Context) (*JobInfo, error)
-	ReportResult(ctx context.Context, jobId string) error
-
+	ReportResult(ctx context.Context, result *JobResult) error
 	Close() error
 	FlushAll() error
 }
@@ -75,7 +76,17 @@ type JobInfo struct {
 	CurrentRetry int                    // current number of retries for the job
 	KeepResult   bool                   `msgpack:"keep_result"` // whether to keep the result of the job
 	Timeout      time.Duration          `msgpack:"timeout"`     // timeout for the job
-	RegisteredAt time.Time              // time when the job was registered
+	RegisteredAt string                 // time when the job was registered
+	StartedAt    string                 // time when the job was started
+}
+
+// GenerateProcessingInfo generates a ProcessingInfo struct from the JobInfo struct.
+func (j *JobInfo) GenerateProcessingInfo() ProcessingInfo {
+	return ProcessingInfo{
+		JobID:     j.Id,
+		StartedAt: j.StartedAt,
+		Timeout:   j.Timeout,
+	}
 }
 
 // Encode encodes the JobInfo struct into a byte slice.
@@ -86,6 +97,22 @@ func (j *JobInfo) Encode() ([]byte, error) {
 // Decode decodes the byte slice into a JobInfo struct.
 func (j *JobInfo) Decode(data []byte) error {
 	return decodeMsg(data, j)
+}
+
+type ProcessingInfo struct {
+	JobID     string        `msgpack:"job_id"`
+	StartedAt string        `msgpack:"started_at"`
+	Timeout   time.Duration `msgpack:"timeout"`
+}
+
+// Encode encodes the ProcessingInfo struct into a byte slice.
+func (p *ProcessingInfo) Encode() ([]byte, error) {
+	return encodeMsg(p)
+}
+
+// Decode decodes the byte slice into a ProcessingInfo struct.
+func (p *ProcessingInfo) Decode(data []byte) error {
+	return decodeMsg(data, p)
 }
 
 type JobResultStatus string
