@@ -68,3 +68,30 @@ func (j *JobInfo) Encode() ([]byte, error) {
 func (j *JobInfo) Decode(data []byte) error {
 	return decodeMsg(data, j)
 }
+
+type JobResultStatus string
+
+const (
+	JobResultStatusSuccess JobResultStatus = "success"
+	JobResultStatusFailure JobResultStatus = "failure"
+)
+
+type JobFailureReason string
+
+const (
+	JobFailureReasonTimeout     JobFailureReason = "timeout"
+	JobFailureReasonServerIssue JobFailureReason = "server_issue"
+	JobFailureReasonUnknown     JobFailureReason = "unknown"
+)
+
+type JobResult struct {
+	Id         string          // This should be the same as the JobInfo ID
+	Type       JobResultStatus // success or failure
+	FinishedAt time.Time       // time when the job finished ISO8601
+
+	Result map[string]interface{} // result of the job. Success -> result, Failure -> error
+
+	FailureReason JobFailureReason // reason for failure
+	ShouldRetry   bool             // whether the job should be retried
+	ErrorMessage  string           // error message if the job failed (for Web UI)
+}
