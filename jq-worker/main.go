@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/lightpub-dev/lightjq/jq-worker/internal"
 	"time"
+
+	"github.com/lightpub-dev/lightjq/jq-worker/internal"
 )
 
 func main() {
-	processes := 5
+	processes := 3
 
 	client := internal.NewClient(internal.RedisOpt{
 		Addr: "localhost:6379",
@@ -53,6 +54,7 @@ func main() {
 				for {
 					job, err := getJob(client)
 					if err != nil {
+						fmt.Printf("Error: %s\n", err)
 						continue
 					}
 					if job == nil {
