@@ -17,7 +17,8 @@ func makeJobKey(jobID string) string {
 }
 
 const (
-	RScoredJobSet = "jq:scoredJobSet"
+	RScoredJobSet   = "jq:scoredJobSet"
+	RProcessingJobs = "jq:processingJobs"
 )
 
 type Worker struct {
@@ -43,12 +44,11 @@ func (j Job) CalculatePriorityScore() float64 {
 }
 
 type Scheduler struct {
-	r       *redis.Client
-	workers []*Worker
+	r *redis.Client
 
-	workerCountLock sync.Mutex
-	occupiedWorkers int
-	maxProcesses    int
+	workersMutex sync.Mutex
+	workers      []*Worker
+	maxProcesses int
 
 	tran *transport.Conn
 }
@@ -63,21 +63,52 @@ func NewWorker(id, workerName string, maxProcesses int) *Worker {
 
 func NewScheduler(r *redis.Client, tran *transport.Conn) *Scheduler {
 	return &Scheduler{
-		r:               r,
-		workers:         make([]*Worker, 0),
-		occupiedWorkers: 0,
-		maxProcesses:    0,
-		tran:            tran,
+		r:            r,
+		workers:      make([]*Worker, 0),
+		maxProcesses: 0,
+		tran:         tran,
 	}
 }
 
 func (s *Scheduler) AddWorker(w *Worker) {
+	s.workersMutex.Lock()
+	defer s.workersMutex.Unlock()
+
 	s.workers = append(s.workers, w)
 	s.maxProcesses += w.MaxProcesses
 }
 
-func (s *Scheduler) HasEmpty() bool {
-	return s.occupiedWorkers < s.maxProcesses
+func (s *Scheduler) RemoveWorker(workerID string) {
+	s.workersMutex.Lock()
+	defer s.workersMutex.Unlock()
+
+	for i, worker := range s.workers {
+		if worker.ID == workerID {
+			s.workers = append(s.workers[:i], s.workers[i+1:]...)
+			s.maxProcesses -= worker.MaxProcesses
+			return
+		}
+	}
+}
+
+func (s *Scheduler) getCurrentProcessingJobsN(ctx context.Context) (int64, error) {
+	return s.r.SCard(ctx, RProcessingJobs).Result()
+}
+
+func (s *Scheduler) addToProcessingJobs(ctx context.Context, jobID string) error {
+	return s.r.SAdd(ctx, RProcessingJobs, jobID).Err()
+}
+
+func (s *Scheduler) removeFromProcessingJobs(ctx context.Context, jobID string) error {
+	return s.r.SRem(ctx, RProcessingJobs, jobID).Err()
+}
+
+func (s *Scheduler) HasEmpty(ctx context.Context) (bool, error) {
+	n, err := s.getCurrentProcessingJobsN(ctx)
+	if err != nil {
+		return false, err
+	}
+	return n < int64(s.maxProcesses), nil
 }
 
 func (s *Scheduler) AddJob(ctx context.Context, job Job) error {
@@ -134,37 +165,33 @@ func (s *Scheduler) BlockJobPop(ctx context.Context) (Job, error) {
 
 func (s *Scheduler) DistributeJobs(ctx context.Context) error {
 	for {
-		s.workerCountLock.Lock()
-		workerAvailable := s.HasEmpty()
+		workerAvailable, err := s.HasEmpty(ctx)
+		if err != nil {
+			log.Printf("failed to scard processing jobs: %v", err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
 		if workerAvailable {
-			s.occupiedWorkers++
-			s.workerCountLock.Unlock()
-
 			job, err := s.BlockJobPop(ctx)
 			if err != nil {
 				log.Printf("error getting job: %v", err)
-				s.notifyJobDone()
 				continue
+			}
+
+			if err := s.addToProcessingJobs(ctx, job.ID); err != nil {
+				log.Printf("error adding job to processing jobs: %v", err)
+				log.Printf("ignoring this error and continue")
 			}
 
 			if err := s.tran.DistributeJob(ctx, job.ID); err != nil {
 				log.Printf("error distributing job: %v", err)
-				s.notifyJobDone()
+				if err := s.removeFromProcessingJobs(ctx, job.ID); err != nil {
+					log.Printf("error removing job from processing jobs: %v", err)
+				}
 				continue
 			}
 		} else {
-			s.workerCountLock.Unlock()
 			time.Sleep(1 * time.Second)
 		}
-	}
-}
-
-func (s *Scheduler) notifyJobDone() {
-	s.workerCountLock.Lock()
-	defer s.workerCountLock.Unlock()
-
-	s.occupiedWorkers--
-	if s.occupiedWorkers < 0 {
-		s.occupiedWorkers = 0
 	}
 }
