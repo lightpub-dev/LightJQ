@@ -9,6 +9,7 @@ const (
 	WorkerRegisterQueue = "jq:workerRegister"
 	GlobalQueue         = "jq:globalQueue"
 	ResultQueue         = "jq:resultQueue"
+	JobRegisterQueue    = "jq:jobList"
 )
 
 type Client struct {
@@ -48,14 +49,14 @@ func (w *WorkerInfo) Decode(data []byte) error {
 }
 
 type JobInfo struct {
-	Id           string                 // unique identifier for the job (e.g., UUID v7)
-	Name         string                 // name of the job (e.g., "job-1")
-	Argument     map[string]interface{} // arguments for the job
-	Priority     int                    // priority of the job (0 is the highest priority)
-	MaxRetry     int                    // maximum number of retries for the job
+	Id           string                 `msgpack:"id"`        // unique identifier for the job (e.g., UUID v7)
+	Name         string                 `msgpack:"name"`      // name of the job (e.g., "job-1")
+	Argument     map[string]interface{} `msgpack:"argument"`  // arguments for the job
+	Priority     int                    `msgpack:"priority"`  // priority of the job (0 is the highest priority)
+	MaxRetry     int                    `msgpack:"max_retry"` // maximum number of retries for the job
 	CurrentRetry int                    // current number of retries for the job
-	KeepResult   bool                   // whether to keep the result of the job
-	Timeout      time.Duration          // timeout for the job
+	KeepResult   bool                   `msgpack:"keep_result"` // whether to keep the result of the job
+	Timeout      time.Duration          `msgpack:"timeout"`     // timeout for the job
 	RegisteredAt time.Time              // time when the job was registered
 }
 

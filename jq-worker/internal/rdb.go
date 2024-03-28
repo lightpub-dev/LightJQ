@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -41,7 +42,7 @@ func (r RedisConn) Enqueue(ctx context.Context, job *JobInfo) error {
 	if err != nil {
 		return err
 	}
-	return r.Client.RPush(ctx, GlobalQueue, encMsg).Err()
+	return r.Client.RPush(ctx, JobRegisterQueue, encMsg).Err()
 }
 
 func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
