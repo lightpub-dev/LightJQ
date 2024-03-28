@@ -56,6 +56,8 @@ func (r RedisConn) Enqueue(ctx context.Context, job *JobInfo) error {
 }
 
 func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
+	startedAt := time.Now().Format(time.RFC3339)
+
 	// 1. Pop a job from the global queue
 	encMsg, err := r.Client.BLPop(ctx, 0, GlobalQueue).Result()
 	if err != nil {
@@ -70,7 +72,8 @@ func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
 	}
 
 	// 3. Notify that the job is being processed
-	if err := r.Client.RPush(ctx, ProcessingQueue, jobId).Err(); err != nil {
+	err = r.notifyProcessing(ctx, &JobInfo{}, startedAt)
+	if err != nil {
 		return nil, err
 	}
 
@@ -80,6 +83,21 @@ func (r RedisConn) Dequeue(ctx context.Context) (*JobInfo, error) {
 		return nil, err
 	}
 	return &job, nil
+}
+
+// notifyProcessing notifies the master that the worker is processing a job
+func (r RedisConn) notifyProcessing(ctx context.Context, job *JobInfo, startedAt string) error {
+	processingInfo := ProcessingInfo{
+		JobID:     job.Id,
+		StartedAt: startedAt,
+		Timeout:   job.Timeout,
+	}
+	encMsg, err := encodeMsg(&processingInfo)
+	if err != nil {
+		return err
+	}
+
+	return r.Client.SAdd(ctx, ProcessingSet, encMsg).Err()
 }
 
 func (r RedisConn) ReportResult(ctx context.Context, jobId string) error {

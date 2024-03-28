@@ -12,7 +12,7 @@ const (
 	GlobalQueue         = "jq:globalQueue"
 	ResultQueue         = "jq:resultQueue"
 	JobRegisterQueue    = "jq:jobList"
-	ProcessingQueue     = "jq:processing"
+	ProcessingSet       = "jq:processing"
 )
 
 type Client struct {
