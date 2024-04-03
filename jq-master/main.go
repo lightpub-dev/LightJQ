@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"strconv"
@@ -10,6 +11,14 @@ import (
 	"github.com/lightpub-dev/lightjq/jq-master/scheduler"
 	"github.com/lightpub-dev/lightjq/jq-master/transport"
 	"github.com/redis/go-redis/v9"
+)
+
+const (
+	DefaultWebPort = 6400
+)
+
+var (
+	enableWebApiFlag = flag.Bool("enable-web-api", false, "enable web API")
 )
 
 type JQMaster struct {
@@ -76,6 +85,7 @@ func main() {
 	redisUser := os.Getenv("REDIS_USER")
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	redisDatabaseStr := os.Getenv("REDIS_DATABASE")
+	webPort := os.Getenv("WEB_PORT")
 
 	if redisAddr == "" {
 		redisAddr = "localhost"
@@ -91,6 +101,10 @@ func main() {
 			log.Fatalf("invalid REDIS_DATABASE: %v", err)
 		}
 		redisDatabase = redisDatabaseInt
+	}
+
+	if webPort == "" {
+		webPort = strconv.Itoa(DefaultWebPort)
 	}
 
 	r := redis.NewClient(&redis.Options{
