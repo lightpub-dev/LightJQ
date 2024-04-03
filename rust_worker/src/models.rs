@@ -83,6 +83,19 @@ impl<A> Job<A> {
     pub fn get_argument(self) -> A {
         self.argument
     }
+
+    pub fn map_argument<B>(self, f: impl FnOnce(A) -> B) -> Job<B> {
+        Job {
+            id: self.id,
+            name: self.name,
+            argument: f(self.argument),
+            priority: self.priority,
+            max_retry: self.max_retry,
+            keep_result: self.keep_result,
+            timeout: self.timeout,
+            registered_at: self.registered_at,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -135,16 +148,17 @@ impl<A: Serialize> ToRedisArgs for JobRequest<A> {
 
 impl<'de, A: Deserialize<'de>> FromRedisValue for Job<A> {
     fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
-        let data = match v {
+        let data = match v.clone() {
             redis::Value::Data(data) => data,
             _ => redis::RedisResult::Err((redis::ErrorKind::TypeError, "unexpected type").into())?,
         };
-        decode_data(data).map_err(|e| match e {
+        let decoded = decode_data(&data).map_err(move |e| match e {
             JQError::DeserializationError(e) => {
                 (redis::ErrorKind::TypeError, "decode error", e.to_string()).into()
             }
             _ => panic!("unexpected error: {:?}", e),
-        })
+        });
+        decoded
     }
 }
 

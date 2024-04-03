@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::models::{Job, JobResult};
 
@@ -25,37 +25,74 @@ impl Worker {
         }
     }
 
-    pub fn register_handler<A, F, R>(&mut self, name: JobName, handler: F)
+    pub fn register_handler_raw<F, R, J>(&mut self, name: J, handler: F)
+    where
+        F: Fn(Job<rmpv::Value>) -> R + 'static,
+        R: Into<JobResult>,
+        J: Into<String>,
+    {
+        self.handlers
+            .insert(name.into(), Box::new(move |job| handler(job).into()));
+    }
+
+    pub fn register_handler<A, F, R, J>(&mut self, name: J, handler: F)
+    where
+        A: for<'de> Deserialize<'de>,
+        F: Fn(Job<A>) -> R + 'static,
+        R: Into<JobResult>,
+        J: Into<String>,
+    {
+        let new_handler = move |job: Job<rmpv::Value>| {
+            let job = job.map_argument(|v| rmpv::ext::from_value::<A>(v).unwrap());
+            handler(job)
+        };
+        self.register_handler_raw(name.into(), new_handler);
+    }
+
+    pub fn register_handler_simple<A, F, R, J>(&mut self, name: J, handler: F)
     where
         A: for<'de> Deserialize<'de>,
         F: Fn(A) -> R + 'static,
         R: Into<JobResult>,
+        J: Into<String>,
     {
-        self.handlers.insert(
-            name,
-            Box::new(move |job| {
-                let argument = job.get_argument();
-                let argument = rmpv::ext::from_value::<A>(argument).unwrap(); // TODO: error handling
-                handler(argument).into()
-            }),
-        );
+        let new_handler = move |job: Job<rmpv::Value>| {
+            let job = job
+                .map_argument(|v| rmpv::ext::from_value::<A>(v).unwrap())
+                .get_argument();
+            handler(job)
+        };
+        self.register_handler_raw(name.into(), new_handler);
     }
 }
 
-#[derive(Deserialize)]
-struct Sample1 {
-    a: String,
-}
+#[cfg(test)]
+mod test {
+    use serde::Deserialize;
 
-#[derive(Deserialize)]
-struct Sample2 {
-    b: i32,
-}
+    use crate::models::JobResult;
 
-fn handler1(data: Sample1) -> JobResult {
-    todo!()
-}
+    #[test]
+    fn test_register_handler() {
+        let mut worker = super::Worker::new();
+        worker.register_handler_simple("Job1", handler1);
+    }
 
-fn handler2(data: Sample2) -> JobResult {
-    todo!()
+    #[derive(Deserialize)]
+    struct Sample1 {
+        a: String,
+    }
+
+    #[derive(Deserialize)]
+    struct Sample2 {
+        b: i32,
+    }
+
+    fn handler1(data: Sample1) -> JobResult {
+        todo!()
+    }
+
+    fn handler2(data: Sample2) -> JobResult {
+        todo!()
+    }
 }
